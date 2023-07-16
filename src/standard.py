@@ -5,6 +5,8 @@ import comms
 from object_types import ObjectTypes
 from strategy import Strategy
 
+BULLET_VELOCITY = 450
+
 
 class Standard(Strategy):
     """
@@ -57,12 +59,40 @@ class Standard(Strategy):
         # of if we have a clean line-of-sight.
         x1, y1 = self.game_state.our_tank["position"]
         x2, y2 = self.game_state.opp_tank["position"]
-        theta = math.atan2(y2 - y1, x2 - x1) * 180 / math.pi
 
-        actions.update({"shoot": theta})
+        target_time = 0
+
+        # Don't fire if the target is too far away.
+        while target_time < 5:
+            # Update positions.
+            x1, x2 = position_prediction(
+                [x1, x2], self.game_state.our_tank["velocity"], target_time
+            )
+            x2, y2 = position_prediction(
+                [x2, y2], self.game_state.opp_tank["velocity"], target_time)
+
+            # Calculate the angle the bullet needs to be fired at.
+            theta = math.atan2(y2 - y1, x2 - x1) * 180 / math.pi
+
+            # Time it will take for the bullet to reach our opponent.
+            t = x2 / (math.cos(theta) / BULLET_VELOCITY)
+
+            if t < target_time:
+                actions.update({"shoot": theta})
+                break
+
+            target_time += 0.01
 
         if actions:
             comms.post_message(actions)
+
+
+def position_prediction(p, v, t):
+    """
+    Returns the predicated position of a point p with the directional
+    velocity v in t time.
+    """
+    return [p[0] + v[0] * t, p[1] + v[1] * t]
 
 
 def manhattan_distance(p1, p2):
